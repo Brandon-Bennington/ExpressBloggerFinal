@@ -1,57 +1,45 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-//load environment variables from .env (.env is the default file)
-require("dotenv").config();
+require('dotenv').config(); 
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const app = express();
 
-//register routes.
-//NOTE: notice how there is .js after index, this is because
-// we exported the module as index. 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var blogsRouter = require('./routes/blogs');
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
 
-//connecting to mongo db 
-var { mongoConnect } = require('./mongo.js');
-mongoConnect();
+// Import your routes
+const blogRoutes = require('./routes/blogRoutes');
+app.use('/api/blogs', blogRoutes);
 
-var app = express();
+// MongoDB connection
+const uri = process.env.ATLAS_URI;
+const db = process.env.MONGO_DATABASE;
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
-
-//set up logger and cookie parser 
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-
-//allows use to load static files from public 
-app.use(express.static(path.join(__dirname, 'public')));
-
-
-//register routes 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-app.use('/blogs', blogsRouter);
-
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+mongoose.connect(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  dbName: db // Use the MONGO_DATABASE environment variable as the database name
+});
+mongoose.connection.on('connected', () => {
+  console.log('Connected to MongoDB cluster');
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+// Error handling
+app.use((req, res, next) => {
+  const error = new Error('Not found');
+  error.status = 404;
+  next(error);
+});
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+app.use((error, req, res, next) => {
+  res.status(error.status || 500);
+  res.json({
+    error: {
+      message: error.message,
+    },
+  });
 });
 
 module.exports = app;
